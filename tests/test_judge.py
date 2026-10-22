@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import pytest
 
@@ -147,6 +148,27 @@ def test_prompt_asks_for_criterion_scores_and_leaves_the_class_to_code():
     assert "Pat" not in prompt
     assert "00:08:20" in prompt
     assert "0.55" in prompt or "55%" in prompt
+
+
+def test_short_repeated_and_overlapping_names_do_not_leak_into_the_prompt():
+    named = [
+        Cue(30.0, 32.0, "Bo Li", "Hello bo, Bo met Anna Lee and Ann."),
+        Cue(40.0, 42.0, "A", "Hi BO and A?"),
+        Cue(50.0, 52.0, "Ann", "Thanks Li."),
+    ]
+    prompt, images = build_judge_prompt(
+        _pack(cues=named, forbidden_names=["Bo Li", "Bo", "Li", "A", "Anna Lee", "Anna", "Ann"])
+    )
+    transcript = prompt.split("Transcript:", 1)[1]
+
+    for secret in ("Bo", "bo", "BO", "Li", "Anna", "Ann"):
+        assert re.search(rf"\b{secret}\b", transcript) is None
+    assert re.search(r"(?m)\bA\b", transcript) is None
+    assert "TEACHER" in prompt
+    assert "STUDENT_" in prompt
+    assert "a criteria" in prompt or "Score each" in prompt
+    assert images == []
+    assert ".mp4" not in prompt
 
 
 def test_prompt_scrubs_names_and_omits_recording_paths():

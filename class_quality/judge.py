@@ -24,7 +24,7 @@ from class_quality.rubric import (
     _not_assessed,
     finalize_report,
 )
-from class_quality.speakers import pseudonymise
+from class_quality.speakers import pseudonymise, scrub_names
 from class_quality.vtt import Cue
 
 _HOMEWORK = re.compile(r"\b(?:homework|home\s+work|hw|assignment)\b", re.IGNORECASE)
@@ -72,9 +72,7 @@ class EvidencePack:
 
 
 def _scrub(text: str, names: list[str]) -> str:
-    for name in sorted({name for name in names if len(name) >= 3}, key=len, reverse=True):
-        text = re.sub(rf"\b{re.escape(name)}\b", "[redacted]", text, flags=re.IGNORECASE)
-    return text
+    return scrub_names(text, names)
 
 
 def _prepare(pack: EvidencePack) -> EvidencePack:

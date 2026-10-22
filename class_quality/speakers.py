@@ -42,24 +42,56 @@ def _select_teacher(cues: list[Cue], speakers: list[str]) -> str | None:
     )
 
 
+def _name_pattern(token: str) -> re.Pattern[str]:
+    """Match a whole name. A one-letter name stays case-sensitive so it does not eat words like \"a\"."""
+    flags = 0 if len(token) == 1 else re.IGNORECASE
+    return re.compile(rf"\b{re.escape(token)}\b", flags)
+
+
 def _token_replacements(speakers: list[str], labels: dict[str, str]) -> list[tuple[re.Pattern[str], str]]:
-    owners: dict[str, str] = {}
+    owners: dict[str, tuple[str, str]] = {}
     ambiguous: set[str] = set()
     for name in speakers:
         for token in name.split():
-            if len(token) < 3:
+            if not token:
                 continue
-            if token in owners and owners[token] != name:
-                ambiguous.add(token)
+            key = token if len(token) == 1 else token.casefold()
+            previous = owners.get(key)
+            if previous is not None and previous[1] != name:
+                ambiguous.add(key)
             else:
-                owners[token] = name
+                owners[key] = (token, name)
     tokens = [
-        (token, labels[owner])
-        for token, owner in owners.items()
-        if token not in ambiguous
+        (original, labels[owner])
+        for key, (original, owner) in owners.items()
+        if key not in ambiguous
     ]
-    tokens.sort(key=lambda item: len(item[0]), reverse=True)
-    return [(re.compile(rf"\b{re.escape(token)}\b", re.IGNORECASE), pseudo) for token, pseudo in tokens]
+    tokens.sort(key=lambda item: (-len(item[0]), item[0].casefold()))
+    return [(_name_pattern(token), pseudo) for token, pseudo in tokens]
+
+
+_PROTECTED_LABEL = re.compile(r"\b(?:TEACHER|UNKNOWN|STUDENT_\d+)\b")
+
+
+def scrub_names(text: str, names: list[str], replacement: str = "[redacted]") -> str:
+    """Replace real names of any length. Longer names are replaced first."""
+    protected: dict[str, str] = {}
+
+    def hold(match: re.Match[str]) -> str:
+        key = f"\x00{len(protected)}\x00"
+        protected[key] = match.group(0)
+        return key
+
+    text = _PROTECTED_LABEL.sub(hold, text)
+    ordered = sorted(
+        {name.strip() for name in names if name and name.strip()},
+        key=lambda name: (-len(name), name.casefold()),
+    )
+    for name in ordered:
+        text = _name_pattern(name).sub(replacement, text)
+    for key, value in protected.items():
+        text = text.replace(key, value)
+    return text
 
 
 def _redact(text: str, patterns: list[tuple[re.Pattern[str], str]]) -> str:
@@ -82,8 +114,8 @@ def pseudonymise(cues: list[Cue]) -> PseudonymisedTranscript:
             labels[name] = students[-1]
 
     full_name_patterns = [
-        (re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE), labels[name])
-        for name in sorted(labels, key=len, reverse=True)
+        (_name_pattern(name), labels[name])
+        for name in sorted(labels, key=lambda item: (-len(item), item.casefold()))
     ]
     patterns = full_name_patterns + _token_replacements(speakers, labels)
 

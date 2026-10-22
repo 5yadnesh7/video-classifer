@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import base64
 import html
+import os
 import queue
 import re
 import shutil
@@ -43,13 +44,14 @@ import gradio as gr
 
 from class_quality.analyze import analyze, attach_transcript_metadata
 from class_quality.cli import render_report
+from class_quality.env import load_local_env
 from class_quality.features import extract_features
 from class_quality.judge import EvidencePack, FrameStill, RubricJudge, cloud_enabled
 from class_quality.media import MediaError, measure_recording
 from class_quality.media import sample_frames as sample_local_frames
 from class_quality.ollama_client import OllamaCloudClient
 from class_quality.rubric import MediaStats, Report, limit_ai_credit, score_rules
-from class_quality.speakers import pseudonymise
+from class_quality.speakers import pseudonymise, scrub_names
 from class_quality.transcribe import failed_transcript, transcribe_recording
 from class_quality.vtt import parse_vtt
 
@@ -651,14 +653,30 @@ def build_interface() -> gr.Blocks:
     return demo
 
 
+def _bind_address() -> tuple[str, int]:
+    """Local runs stay on localhost. A host sets CLASS_QUALITY_HOST and PORT."""
+    host = os.environ.get("CLASS_QUALITY_HOST") or "127.0.0.1"
+    raw_port = os.environ.get("PORT") or "7860"
+    try:
+        port = int(raw_port)
+    except ValueError:
+        port = 7860
+    if port < 1 or port > 65535:
+        port = 7860
+    return host, port
+
+
 def main() -> None:
     """Serve the interface on localhost. Cloud analysis stays off unless the environment already allows it.
 
     ``share=False`` is explicit so GRADIO_SHARE cannot publish the page.
-    ``server_name`` is localhost even if GRADIO_SERVER_NAME is 0.0.0.0.
+    The host and port change only when the deployment sets CLASS_QUALITY_HOST and PORT.
     """
+    load_local_env()
+    host, port = _bind_address()
     build_interface().launch(
-        server_name="127.0.0.1",
+        server_name=host,
+        server_port=port,
         share=False,
         max_file_size=MAX_UPLOAD_BYTES,
         theme=_theme(),
@@ -1294,14 +1312,12 @@ def _speaker_names(transcript: Path | None) -> list[str]:
         if not cue.speaker:
             continue
         names.append(cue.speaker)
-        names.extend(token for token in cue.speaker.split() if len(token) >= 3)
+        names.extend(token for token in cue.speaker.split() if token)
     return names
 
 
 def _scrub(text: str, names: list[str]) -> str:
-    for name in sorted({name for name in names if len(name) >= 3}, key=len, reverse=True):
-        text = re.sub(rf"\b{re.escape(name)}\b", "[redacted]", text, flags=re.IGNORECASE)
-    return text
+    return scrub_names(text, names)
 
 
 def _oversized(path: Path, limit: int, kind: str) -> str | None:

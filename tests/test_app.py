@@ -535,9 +535,42 @@ def test_lowercase_names_in_the_model_text_are_removed(tmp_path: Path, monkeypat
     assert "pat" not in result.lower()
 
 
+def test_short_names_are_removed_from_the_report():
+    import re
+
+    from class_quality.app import _scrub
+
+    text = _scrub("Hello Bo and A. Hi BO, Li, and Anna Lee saw Ann.", ["Bo", "Li", "A", "Anna Lee", "Ann"])
+
+    for secret in ("Bo", "BO", "Li", "Anna", "Ann"):
+        assert re.search(rf"\b{secret}\b", text) is None
+    assert re.search(r"\bA\b", text) is None
+    assert "and" in text
+    assert "saw" in text
+
+
+def test_deployment_host_and_port_are_configurable(monkeypatch):
+    monkeypatch.setenv("CLASS_QUALITY_HOST", "0.0.0.0")
+    monkeypatch.setenv("PORT", "10000")
+    captured: dict = {}
+
+    def launch(self, *args, **kwargs):
+        captured.update(kwargs)
+        return None
+
+    monkeypatch.setattr(app_module.gr.Blocks, "launch", launch)
+    app_module.main()
+
+    assert captured.get("server_name") == "0.0.0.0"
+    assert captured.get("server_port") == 10000
+    assert captured.get("share") is False
+
+
 def test_launch_stays_on_localhost_without_a_public_share(monkeypatch):
     monkeypatch.setenv("GRADIO_SHARE", "true")
     monkeypatch.setenv("GRADIO_SERVER_NAME", "0.0.0.0")
+    monkeypatch.delenv("CLASS_QUALITY_HOST", raising=False)
+    monkeypatch.delenv("PORT", raising=False)
     captured: dict = {}
 
     def launch(self, *args, **kwargs):

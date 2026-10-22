@@ -1,0 +1,17 @@
+.env
+.env.*
+.git
+.venv
+venv
+dataset
+**/__pycache__
+**/*.pyc
+**/*.mp4
+**/*.vtt
+**/*.pdf
+**/*.png
+**/*.jpg
+**/*.jpeg
+research
+tests
+.pytest_cache

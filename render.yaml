@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: class-quality
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: CLASS_QUALITY_HOST
+        value: 0.0.0.0
+      - key: OLLAMA_CLOUD_PERMITTED
+        value: "0"
+      - key: OLLAMA_API_KEY
+        sync: false

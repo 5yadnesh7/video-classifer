@@ -1,5 +1,7 @@
 """Teacher selection and name pseudonymisation. Synthetic names only."""
 
+import re
+
 from class_quality.speakers import pseudonymise
 from class_quality.vtt import Cue
 
@@ -44,6 +46,28 @@ def test_question_tie_uses_turn_count_then_who_spoke_first():
     by_order = pseudonymise(same_turns)
     assert by_order.cues[0].speaker == "TEACHER"
     assert by_order.cues[1].speaker == "STUDENT_1"
+
+
+def test_short_names_of_every_length_are_pseudonymised_without_touching_other_words():
+    cues = [
+        _cue(0, "Bo Li", "Hello Bo, Also Al went to the algebra class?"),
+        _cue(5, "A", "Hi BO and A, a cat sat."),
+        _cue(10, "Ann", "Anna Lee saw Ann again."),
+        _cue(15, "Anna Lee", "Thanks Ann and Anna Lee."),
+    ]
+
+    first = pseudonymise(cues)
+    second = pseudonymise(cues)
+    rendered = " ".join(f"{cue.speaker}: {cue.text}" for cue in first.cues)
+
+    for secret in ("Bo", "BO", "Li", "Anna Lee", "Ann"):
+        assert re.search(rf"\b{re.escape(secret)}\b", rendered) is None
+    assert "Also" in rendered
+    assert "algebra" in rendered
+    assert "a cat" in rendered
+    assert "TEACHER" in rendered
+    assert "STUDENT_" in rendered
+    assert [(cue.speaker, cue.text) for cue in first.cues] == [(cue.speaker, cue.text) for cue in second.cues]
 
 
 def test_real_names_are_removed_from_text_including_unique_name_parts():
