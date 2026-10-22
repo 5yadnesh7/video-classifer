@@ -1,0 +1,37 @@
+# Confidential class recordings and derived artefacts must never be committed
+dataset/
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.m4v
+*.mpg
+*.mpeg
+*.m4a
+*.wav
+*.mp3
+*.vtt
+*.srt
+*.png
+*.jpg
+*.jpeg
+*.pdf
+cache/
+outputs/
+frames/
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/

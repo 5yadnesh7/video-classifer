@@ -1,0 +1,6 @@
+pytest==9.1.1
+pydantic==2.14.1
+gradio==6.30.0
+python-dotenv==1.2.4
+faster-whisper==1.2.1
+av==16.1.0
